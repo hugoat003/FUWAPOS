@@ -1,0 +1,152 @@
+/* FUWA POS — estilos globales y variables de tema.
+   Paleta tomada del logo: azul marino + crema + dorado. */
+:root {
+  --navy: #3a4158;
+  --gold: #bfa377;
+  --cream: #faf6ee;
+  --ink: #3a4158;
+  --muted: #94918a;
+  --line: #ece6da;
+  --primary: #3a4158;
+  --primary-soft: #eceef5;
+  --r: 18px;
+  --display: "Baloo 2", system-ui;
+  --ui: "Nunito", system-ui, sans-serif;
+  --jp: "Mochiy Pop One", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+body {
+  font-family: var(--ui);
+  background: var(--cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+#root {
+  height: 100vh;
+}
+button {
+  font-family: var(--ui);
+}
+h1 {
+  line-height: 1.1;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  border: 2px solid var(--cream);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+input:focus,
+textarea:focus {
+  border-color: var(--primary) !important;
+}
+
+/* La comanda de cocina y los documentos de reimpresión permanecen ocultos en
+   pantalla; solo aparecen al imprimir. */
+.fuwa-comanda,
+.fuwa-printsrc {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  /* Por defecto (y al imprimir el recibo) se muestra el comprobante del cliente. */
+  .fuwa-printsrc {
+    display: block !important;
+  }
+  .fuwa-ticket,
+  .fuwa-ticket * {
+    visibility: visible !important;
+  }
+  .fuwa-ticket {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    box-shadow: none !important;
+  }
+  /* Al imprimir la comanda de cocina, se oculta el recibo y se muestra la comanda. */
+  body[data-print="kitchen"] .fuwa-ticket {
+    display: none !important;
+  }
+  body[data-print="kitchen"] .fuwa-comanda {
+    display: block !important;
+  }
+  body[data-print="kitchen"] .fuwa-comanda,
+  body[data-print="kitchen"] .fuwa-comanda * {
+    visibility: visible !important;
+  }
+  .fuwa-comanda {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    box-shadow: none !important;
+  }
+
+  /* Impresora térmica de rollo: el ticket/comanda ocupan todo el ancho del papel
+     y se imprimen en negro nítido (sin sombras ni bordes redondeados grandes). */
+  body[data-paper="80"] .fuwa-ticket,
+  body[data-paper="80"] .fuwa-comanda {
+    width: 72mm !important;
+    padding: 2mm 3mm !important;
+    border-radius: 0 !important;
+  }
+  body[data-paper="58"] .fuwa-ticket,
+  body[data-paper="58"] .fuwa-comanda {
+    width: 50mm !important;
+    padding: 1.5mm 2mm !important;
+    border-radius: 0 !important;
+    font-size: 11px !important;
+  }
+  /* En papel térmico todo se imprime en negro para máximo contraste/legibilidad. */
+  body[data-paper="80"] .fuwa-ticket *,
+  body[data-paper="58"] .fuwa-ticket *,
+  body[data-paper="80"] .fuwa-comanda *,
+  body[data-paper="58"] .fuwa-comanda * {
+    color: #000 !important;
+  }
+}
+
+@keyframes fuwaShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-9px);
+  }
+  40% {
+    transform: translateX(9px);
+  }
+  60% {
+    transform: translateX(-6px);
+  }
+  80% {
+    transform: translateX(6px);
+  }
+}
+.fuwa-shake {
+  animation: fuwaShake 0.4s ease;
+}
