@@ -26,7 +26,9 @@ export function Avatar({ user, size = 56, ring }) {
 }
 
 export function RoleBadge({ role, small }) {
-  const r = ROLES[role];
+  // Sin fallback, un rol desconocido (venido de un respaldo viejo o de la API)
+  // tumbaba el Login entero al leer .color de undefined.
+  const r = ROLES[role] || ROLES.cajero;
   return (
     <span
       style={{

@@ -1,8 +1,11 @@
-/* FUWA POS — pantalla de login: selección de usuario y teclado de PIN. */
+/* FUWA POS — pantalla de login: selección de usuario y teclado de PIN.
+   El PIN se verifica en el SERVIDOR (POST /api/login con scrypt + rate limit);
+   el navegador nunca ve hashes. Requiere conexión para iniciar sesión nueva. */
 import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon.jsx";
 import { Mascot } from "../components/Mascot.jsx";
 import { Avatar, RoleBadge } from "./Avatar.jsx";
+import { apiLogin, apiFetch } from "../lib/api.js";
 
 function KeyBtn({ children, onClick, ghost }) {
   return (
@@ -23,20 +26,25 @@ function KeyBtn({ children, onClick, ghost }) {
         justifyContent: "center",
         transition: "transform .07s ease, background .1s ease",
       }}
-      onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
-      onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-      onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+      /* Pointer y no mouse: en táctil los eventos de ratón son sintéticos y
+         llegan hasta después del touchend, así que el hundido se veía tarde. */
+      onPointerDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+      onPointerUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+      onPointerCancel={(e) => (e.currentTarget.style.transform = "scale(1)")}
+      onPointerLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
     >
       {children}
     </button>
   );
 }
 
-export function Login({ onLogin, users }) {
+export function Login({ onLogin, users: usersProp }) {
   const [sel, setSel] = useState(null);
   const [pin, setPin] = useState("");
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState(""); // mensaje de error ("" = sin error)
+  const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [users, setUsers] = useState(usersProp || []);
 
   // Reloj en vivo del panel de marca: se actualiza cada segundo.
   useEffect(() => {
@@ -44,19 +52,38 @@ export function Login({ onLogin, users }) {
     return () => clearInterval(id);
   }, []);
 
+  // Lista de usuarios para el login: endpoint público (solo id/nombre/rol/color).
+  // El prop puede venir vacío si este navegador nunca ha iniciado sesión.
+  useEffect(() => {
+    apiFetch("/api/login-users")
+      .then((list) => setUsers(list))
+      .catch(() => {
+        /* sin conexión: se queda con el caché del prop */
+      });
+  }, []);
+  useEffect(() => {
+    if (usersProp && usersProp.length) setUsers((u) => (u.length ? u : usersProp));
+  }, [usersProp]);
+
   const hora = now.toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" });
   const fecha = now.toLocaleDateString("es-GT", { weekday: "long", day: "numeric", month: "long" });
 
   function press(d) {
-    if (err) setErr(false);
+    if (busy) return;
+    if (err) setErr("");
     const next = (pin + d).slice(0, 4);
     setPin(next);
     if (next.length === 4) {
-      setTimeout(() => {
-        if (next === sel.pin) onLogin(sel);
-        else {
-          setErr(true);
+      setBusy(true);
+      setTimeout(async () => {
+        try {
+          const user = await apiLogin(sel.id, next);
+          onLogin(user);
+        } catch (e) {
+          setErr(e.offline ? "Sin conexión con el servidor" : e.message || "PIN incorrecto, intenta de nuevo");
           setPin("");
+        } finally {
+          setBusy(false);
         }
       }, 120);
     }
@@ -78,7 +105,7 @@ export function Login({ onLogin, users }) {
       } else if (e.key === "Escape") {
         setSel(null);
         setPin("");
-        setErr(false);
+        setErr("");
       }
     }
     window.addEventListener("keydown", onKey);
@@ -86,9 +113,10 @@ export function Login({ onLogin, users }) {
   }, [sel, pin, err]);
 
   return (
-    <div style={{ height: "100vh", width: "100vw", display: "flex", overflow: "hidden" }}>
+    <div className="fuwa-viewport" style={{ width: "100vw", display: "flex", overflow: "hidden" }}>
       {/* panel de marca */}
       <div
+        className="fuwa-brand-panel"
         style={{
           width: 420,
           flexShrink: 0,
@@ -132,7 +160,7 @@ export function Login({ onLogin, users }) {
                   onClick={() => {
                     setSel(u);
                     setPin("");
-                    setErr(false);
+                    setErr("");
                   }}
                   style={{
                     display: "flex",
@@ -173,7 +201,7 @@ export function Login({ onLogin, users }) {
               onClick={() => {
                 setSel(null);
                 setPin("");
-                setErr(false);
+                setErr("");
               }}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontWeight: 800, fontSize: 14.5, fontFamily: "var(--ui)", marginBottom: 22 }}
             >
@@ -204,7 +232,7 @@ export function Login({ onLogin, users }) {
                 />
               ))}
             </div>
-            <div style={{ height: 22, color: "oklch(0.6 0.16 25)", fontWeight: 800, fontSize: 13.5, marginBottom: 14 }}>{err ? "PIN incorrecto, intenta de nuevo" : ""}</div>
+            <div style={{ height: 22, color: "oklch(0.6 0.16 25)", fontWeight: 800, fontSize: 13.5, marginBottom: 14 }}>{err}</div>
             {/* teclado */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, maxWidth: 280, margin: "0 auto" }}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (

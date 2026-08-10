@@ -2,7 +2,10 @@
 import { useMemo, useState } from "react";
 import { Icon } from "../components/Icon.jsx";
 import { Mascot } from "../components/Mascot.jsx";
+import { Kpi, DashCard } from "../components/ui.jsx";
+import { ProfitCard } from "../components/ProfitCard.jsx";
 import { money, fmtHour, lineTotal } from "../lib/format.js";
+import { computeProfit } from "../lib/profit.js";
 
 // Períodos disponibles para el reporte.
 const PERIODS = [
@@ -24,32 +27,6 @@ function periodStart(id) {
     return d.getTime() - 6 * 86400000;
   }
   return null;
-}
-
-function Kpi({ icon, label, value, accent }) {
-  return (
-    <div style={{ background: accent ? "var(--navy)" : "#fff", border: "2px solid " + (accent ? "var(--navy)" : "var(--line)"), borderRadius: "var(--r)", padding: "16px 18px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 9, background: accent ? "rgba(255,255,255,.14)" : "var(--primary-soft)", color: accent ? "#fff" : "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name={icon} size={18} />
-        </div>
-        <div style={{ fontSize: 12.5, fontWeight: 800, color: accent ? "rgba(255,255,255,.72)" : "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4, lineHeight: 1.1 }}>{label}</div>
-      </div>
-      <div style={{ fontFamily: "var(--display)", fontWeight: 800, fontSize: 27, color: accent ? "#fff" : "var(--navy)" }}>{value}</div>
-    </div>
-  );
-}
-
-function DashCard({ title, hint, children }) {
-  return (
-    <div style={{ background: "#fff", border: "2px solid var(--line)", borderRadius: "var(--r)", padding: "18px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ fontFamily: "var(--display)", fontWeight: 800, fontSize: 17, color: "var(--navy)" }}>{title}</div>
-        {hint && <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--gold)", background: "color-mix(in oklch, var(--gold) 14%, white)", padding: "3px 10px", borderRadius: 999 }}>{hint}</div>}
-      </div>
-      {children}
-    </div>
-  );
 }
 
 function Donut({ frac }) {
@@ -114,21 +91,25 @@ function PeriodSelector({ period, setPeriod }) {
   );
 }
 
-export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }) {
+export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [], menu = [], mods = {}, ingredients = [] }) {
   const [period, setPeriod] = useState("turno");
   const catById = useMemo(() => Object.fromEntries(cats.map((c) => [c.id, c])), [cats]);
 
   // Para "Turno actual" solo cuenta el turno en curso; para los demás períodos
   // se suman las órdenes y gastos de los turnos archivados dentro del rango.
-  const { periodOrders, periodExpenses } = useMemo(() => {
-    if (period === "turno") return { periodOrders: orders, periodExpenses: expenses };
+  const { periodOrders, periodExpenses, compactedShifts } = useMemo(() => {
+    if (period === "turno") return { periodOrders: orders, periodExpenses: expenses, compactedShifts: [] };
     const allOrders = [...orders, ...shiftHistory.flatMap((s) => s.orders || [])];
     const allExpenses = [...expenses, ...shiftHistory.flatMap((s) => s.expenses || [])];
     const start = periodStart(period);
-    if (start == null) return { periodOrders: allOrders, periodExpenses: allExpenses };
+    // Turnos compactados: sus órdenes ya no existen en detalle; solo se suman
+    // sus totales a los KPIs (no a las gráficas).
+    const compactedShifts = shiftHistory.filter((s) => s.compacted && (start == null || s.closedAt >= start));
+    if (start == null) return { periodOrders: allOrders, periodExpenses: allExpenses, compactedShifts };
     return {
       periodOrders: allOrders.filter((o) => o.ts >= start),
       periodExpenses: allExpenses.filter((e) => e.ts >= start),
+      compactedShifts,
     };
   }, [period, orders, expenses, shiftHistory]);
 
@@ -141,13 +122,28 @@ export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }
     const rows = [...shiftHistory]
       .reverse()
       .slice(0, 8)
-      .map((s) => ({ id: s.id, label: s.closedAtLabel, diff: s.diff, ...summarize(s.orders.filter((o) => !o.voided)) }));
+      .map((s) => ({
+        id: s.id,
+        label: s.closedAtLabel,
+        diff: s.diff,
+        ...(s.compacted
+          ? { count: s.totals?.count || 0, total: s.totals?.total || 0, avg: s.totals?.count ? s.totals.total / s.totals.count : 0 }
+          : summarize(s.orders.filter((o) => !o.voided))),
+      }));
     const cur = orders.filter((o) => !o.voided);
     if (cur.length) rows.unshift({ id: "actual", label: "Turno actual", diff: null, ...summarize(cur) });
     return rows;
   }, [orders, shiftHistory]);
 
-  const expensesTotal = periodExpenses.reduce((s, e) => s + e.amount, 0);
+  // Solo salidas: las entradas de dinero a caja no son un gasto.
+  const expensesTotal =
+    periodExpenses.filter((e) => (e.kind || "salida") !== "entrada").reduce((s, e) => s + e.amount, 0) +
+    compactedShifts.reduce((s, x) => s + (x.totals?.expensesTotal || 0), 0);
+
+  const profit = useMemo(
+    () => computeProfit(periodOrders, periodExpenses, menu, mods, ingredients),
+    [periodOrders, periodExpenses, menu, mods, ingredients]
+  );
 
   const stats = useMemo(() => {
     const validOrders = periodOrders.filter((o) => !o.voided);
@@ -160,8 +156,7 @@ export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }
       items = 0;
     const byCat = {};
     cats.forEach((c) => (byCat[c.id] = 0));
-    const byHour = {};
-    for (let h = 8; h <= 20; h++) byHour[h] = 0;
+    const byHourRaw = {};
     const prodMap = {};
     const cashierMap = {};
     validOrders.forEach((o) => {
@@ -178,13 +173,17 @@ export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }
           cardN++;
         }
       });
-      const h = Math.min(20, Math.max(8, new Date(o.ts).getHours()));
-      byHour[h] += o.payment.total;
+      const h = new Date(o.ts).getHours();
+      byHourRaw[h] = (byHourRaw[h] || 0) + o.payment.total;
       const cashierName = o.cashier || "Barista";
       if (!cashierMap[cashierName]) cashierMap[cashierName] = { name: cashierName, sales: 0, count: 0 };
       cashierMap[cashierName].sales += o.payment.total;
       cashierMap[cashierName].count++;
       o.lines.forEach((l) => {
+        /* Una línea anulada nunca se cobró: contarla inflaba los "más vendidos"
+           con productos que el cliente canceló y hacía que las ventas por
+           categoría sumaran más que el total real de la orden. */
+        if (l.voided) return;
         const lt = lineTotal(l);
         byCat[l.catId] = (byCat[l.catId] || 0) + lt;
         items += l.qty;
@@ -193,13 +192,32 @@ export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }
         prodMap[l.name].rev += lt;
       });
     });
-    const total = validOrders.reduce((s, o) => s + o.payment.total, 0);
+    // Rango horario de la gráfica: 8–20 por defecto, extendido si hubo ventas
+    // fuera de ese horario (antes se apilaban en la barra de las 8 o las 20).
+    const hoursSeen = Object.keys(byHourRaw).map(Number);
+    const hLo = Math.min(8, ...hoursSeen);
+    const hHi = Math.max(20, ...hoursSeen);
+    const byHour = {};
+    for (let h = hLo; h <= hHi; h++) byHour[h] = byHourRaw[h] || 0;
+    let total = validOrders.reduce((s, o) => s + o.payment.total, 0);
+    // Totales de turnos compactados: entran a los KPIs, no a las gráficas.
+    let count = validOrders.length;
+    compactedShifts.forEach((s) => {
+      const t = s.totals || {};
+      sales += t.sales || 0;
+      tips += t.tips || 0;
+      cash += t.cash || 0;
+      card += t.card || 0;
+      items += t.items || 0;
+      total += t.total || 0;
+      count += t.count || 0;
+    });
     const top = Object.values(prodMap)
       .sort((a, b) => b.rev - a.rev)
       .slice(0, 5);
     const byCashier = Object.values(cashierMap).sort((a, b) => b.sales - a.sales);
-    return { sales, tips, cash, card, cashN, cardN, byCat, byHour, total, count: validOrders.length, avg: validOrders.length ? total / validOrders.length : 0, items, top, byCashier };
-  }, [periodOrders, cats]);
+    return { sales, tips, cash, card, cashN, cardN, byCat, byHour, total, count, avg: count ? total / count : 0, items, top, byCashier };
+  }, [periodOrders, cats, compactedShifts]);
 
   const periodLabel = PERIODS.find((p) => p.id === period).label;
 
@@ -244,10 +262,17 @@ export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }
         <Kpi icon="star" label="Ticket promedio" value={money(stats.avg)} />
         <Kpi icon="note" label="Propinas" value={money(stats.tips)} />
         <Kpi icon="trash" label="Gastos del turno" value={money(expensesTotal)} />
+        <Kpi
+          icon="report"
+          label={profit.net >= 0 ? "Ganancia neta" : "Pérdida"}
+          value={money(Math.abs(profit.net))}
+          accent
+          tone={profit.net >= 0 ? "oklch(0.45 0.11 150)" : "oklch(0.5 0.16 25)"}
+        />
       </div>
 
       {/* cuerpo */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 18, alignItems: "start" }}>
+      <div className="fuwa-split" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 18, alignItems: "start" }}>
         {/* columna izquierda */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
           <DashCard title="Ventas por hora" hint={`Hora pico: ${fmtHour(peakHour)}`}>
@@ -292,6 +317,7 @@ export function SummaryScreen({ orders, expenses = [], cats, shiftHistory = [] }
 
         {/* columna derecha */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+          <ProfitCard profit={profit} />
           <DashCard title="Métodos de pago">
             <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 4 }}>
               <Donut frac={cashFrac} />

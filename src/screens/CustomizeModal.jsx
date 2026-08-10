@@ -18,7 +18,8 @@ function OptBtn({ active, label, hint, onClick, color }) {
     <button
       onClick={onClick}
       style={{
-        padding: "10px 16px",
+        padding: "12px 18px",
+        minHeight: 48 /* target táctil aunque la opción no tenga hint de precio */,
         borderRadius: 14,
         cursor: "pointer",
         fontFamily: "var(--ui)",
@@ -31,6 +32,7 @@ function OptBtn({ active, label, hint, onClick, color }) {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        justifyContent: "center",
         lineHeight: 1.2,
       }}
     >
@@ -112,7 +114,7 @@ export function CustomizeModal({ product, cat, modGroupsMap, initialLine, onClos
 
   return (
     <div onClick={onClose} style={overlay}>
-      <div onClick={(e) => e.stopPropagation()} style={{ ...sheet, maxWidth: 540, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+      <div className="fuwa-sheet-tall" onClick={(e) => e.stopPropagation()} style={{ ...sheet, maxWidth: 540, display: "flex", flexDirection: "column" }}>
         {/* header */}
         <div style={{ background: cat.tint, padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div>

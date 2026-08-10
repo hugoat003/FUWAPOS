@@ -26,7 +26,87 @@ function backupLabel(ts) {
   return `Último respaldo: ${when} (${ago}).`;
 }
 
-export function ToolsScreen({ onResetMenu, onClearOrders, onExport, onImport, lastBackup }) {
+const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.round(n / 1024) + " KB");
+const cuando = (ts) => new Date(ts).toLocaleString("es-GT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/* Tarjeta del respaldo automático. Es lo primero que debería ver el gerente:
+   sin una señal visible de que el respaldo corre, la única forma de enterarse de
+   que dejó de funcionar es el día que se necesita. */
+function RespaldoAuto({ estado, onAhora, ocupado }) {
+  if (!estado) return null;
+  const { activo, hora, conservar, destino, hoyListo, ultimo, copias } = estado;
+  const fuera = destino.carpeta || destino.drive;
+  // carpetaOk === false significa que la ruta existe en el .env pero no se pudo
+  // escribir: es un respaldo que el gerente cree tener y no tiene.
+  const carpetaRota = destino.carpetaOk === false;
+  const problema = !activo || carpetaRota || (ultimo && ultimo.error);
+
+  const tono = problema
+    ? { fg: "oklch(0.5 0.13 70)", bg: "oklch(0.95 0.06 85)" }
+    : { fg: "var(--primary)", bg: "var(--primary-soft)" };
+
+  return (
+    <ToolCard
+      icon="cash"
+      title="Respaldo automático"
+      desc={`Se guarda una copia completa al día y se conservan las últimas ${conservar}. Si la computadora estuvo apagada a la hora programada, la copia se hace al encenderla.`}
+    >
+      <div style={{ fontSize: 12.5, fontWeight: 800, color: tono.fg, background: tono.bg, borderRadius: 10, padding: "8px 12px" }}>
+        {!activo
+          ? "Desactivado (BACKUP_AUTO=off)"
+          : hoyListo
+          ? `Al día · la copia de hoy ya está guardada`
+          : `Programado a partir de las ${hora}:00 · aún no se hace la de hoy`}
+      </div>
+
+      <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5 }}>
+        <div>
+          <b style={{ color: "var(--navy)" }}>Fuera de esta computadora:</b>{" "}
+          {destino.drive && destino.carpeta
+            ? "Google Drive y carpeta sincronizada"
+            : destino.drive
+            ? "Google Drive"
+            : destino.carpeta
+            ? destino.carpeta
+            : "no configurado — la copia solo vive en este disco"}
+        </div>
+        {!fuera && (
+          <div style={{ color: "oklch(0.5 0.13 70)", fontWeight: 700, marginTop: 3 }}>
+            Un respaldo en el mismo disco que los datos no protege de que falle el disco.
+          </div>
+        )}
+        {carpetaRota && (
+          <div style={{ color: "oklch(0.5 0.16 25)", fontWeight: 700, marginTop: 3 }}>
+            No se puede escribir en esa carpeta. {destino.carpetaError}
+          </div>
+        )}
+        {destino.carpeta && destino.carpetaOk === true && (
+          <div style={{ color: "var(--primary)", fontWeight: 700, marginTop: 3 }}>Carpeta verificada al arrancar.</div>
+        )}
+        {ultimo && ultimo.error && (
+          <div style={{ color: "oklch(0.5 0.16 25)", fontWeight: 700, marginTop: 3 }}>Última copia fuera: {ultimo.error}</div>
+        )}
+      </div>
+
+      {copias && copias.length > 0 && (
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>
+          {copias.slice(0, 3).map((c) => (
+            <div key={c.archivo} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+              <span>{c.archivo.replace("fuwa-", "").replace(".json", "")}</span>
+              <span>{kb(c.bytes)} · {cuando(c.fecha)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Btn kind="ghost" size="sm" icon="check" onClick={onAhora} disabled={ocupado}>
+        {ocupado ? "Respaldando…" : "Respaldar ahora"}
+      </Btn>
+    </ToolCard>
+  );
+}
+
+export function ToolsScreen({ onResetMenu, onClearOrders, onExport, onImport, lastBackup, backupEstado, onBackupAhora, backupOcupado }) {
   const fileInputRef = useRef(null);
   const stale = !lastBackup || (Date.now() - lastBackup) / 86400000 >= 2;
 
@@ -42,7 +122,9 @@ export function ToolsScreen({ onResetMenu, onClearOrders, onExport, onImport, la
       <p style={{ color: "var(--muted)", margin: "0 0 22px", fontSize: 15 }}>Acciones de mantenimiento y respaldo de datos. Visible solo para Gerencia.</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, maxWidth: 920 }}>
-        <ToolCard icon="cash" title="Respaldo de datos" desc="Descarga un archivo .json con el menú, empleados, historial y turnos archivados. Hazlo al cerrar cada día y guárdalo fuera de esta computadora.">
+        <RespaldoAuto estado={backupEstado} onAhora={onBackupAhora} ocupado={backupOcupado} />
+
+        <ToolCard icon="cash" title="Descargar una copia" desc="Baja un .json a esta tablet, además del respaldo automático. Útil para llevarte una copia a mano antes de un cambio grande.">
           <div style={{ fontSize: 12.5, fontWeight: 800, color: stale ? "oklch(0.5 0.13 70)" : "var(--primary)", background: stale ? "oklch(0.95 0.06 85)" : "var(--primary-soft)", borderRadius: 10, padding: "8px 12px" }}>
             {backupLabel(lastBackup)}
           </div>

@@ -1,4 +1,6 @@
-/* FUWA POS — administración de empleados: agregar / editar / eliminar usuarios. */
+/* FUWA POS — administración de empleados: agregar / editar / eliminar usuarios.
+   Guarda contra la API del servidor (el PIN viaja plano y el server lo hashea
+   con scrypt; en producción siempre detrás de HTTPS). */
 import { useState } from "react";
 import { Icon } from "../components/Icon.jsx";
 import { Btn, Pill, overlay, sheet, iconBtn } from "../components/ui.jsx";
@@ -29,13 +31,15 @@ function Field({ label, children }) {
 function StaffForm({ initial, onCancel, onSave, onDelete, canDelete }) {
   const [name, setName] = useState(initial.name || "");
   const [role, setRole] = useState(initial.role || "cajero");
-  const [pin, setPin] = useState(initial.pin || "");
+  // El PIN guardado es un hash: no se puede mostrar. Vacío = no cambiarlo.
+  const [pin, setPin] = useState("");
   const [hue, setHue] = useState(initial.hue != null ? initial.hue : 200);
   const isNew = !initial.id;
-  const valid = name.trim() && /^\d{4}$/.test(pin);
+  const valid = name.trim() && (isNew ? /^\d{4}$/.test(pin) : pin === "" || /^\d{4}$/.test(pin));
 
-  function save() {
-    onSave({ id: initial.id || "u_" + Date.now().toString(36), name: name.trim(), role, pin, hue });
+  async function save() {
+    // PIN nuevo → el servidor lo hashea; sin PIN → conserva el actual.
+    onSave({ id: initial.id || "u_" + Date.now().toString(36), name: name.trim(), role, hue, ...(pin ? { pin } : {}) });
   }
 
   return (
@@ -65,16 +69,16 @@ function StaffForm({ initial, onCancel, onSave, onDelete, canDelete }) {
               ))}
             </div>
             <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 8, lineHeight: 1.4 }}>
-              {role === "admin" ? "Acceso total: orden, historial, menú, resumen/cierre y empleados." : "Acceso a tomar orden e historial únicamente."}
+              {(ROLES[role] || {}).desc || ""}
             </div>
           </Field>
           <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 16 }}>
-            <Field label="PIN (4 dígitos)">
+            <Field label={isNew ? "PIN (4 dígitos)" : "Nuevo PIN (opcional)"}>
               <input
                 value={pin}
                 onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 inputMode="numeric"
-                placeholder="0000"
+                placeholder={isNew ? "0000" : "••••"}
                 style={{ ...inp, fontFamily: "var(--display)", fontWeight: 800, fontSize: 20, letterSpacing: 4, textAlign: "center" }}
               />
             </Field>
@@ -102,24 +106,16 @@ function StaffForm({ initial, onCancel, onSave, onDelete, canDelete }) {
   );
 }
 
-export function StaffEditor({ users, setUsers, currentUser }) {
+export function StaffEditor({ users, onSave, onDelete, currentUser }) {
   const [editing, setEditing] = useState(null);
 
   const adminCount = users.filter((u) => u.role === "admin").length;
 
-  function upsert(u) {
-    setUsers((prev) => {
-      const i = prev.findIndex((x) => x.id === u.id);
-      if (i === -1) return [...prev, u];
-      const copy = [...prev];
-      copy[i] = u;
-      return copy;
-    });
-    setEditing(null);
+  async function upsert(u) {
+    if (await onSave(u)) setEditing(null);
   }
-  function remove(id) {
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    setEditing(null);
+  async function remove(id) {
+    if (await onDelete(id)) setEditing(null);
   }
   // No se puede eliminar al usuario en sesión ni al último gerente.
   function canDelete(u) {
@@ -164,7 +160,7 @@ export function StaffEditor({ users, setUsers, currentUser }) {
                 </div>
                 <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 8 }}>
                   <RoleBadge role={u.role} small />
-                  <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700 }}>PIN {u.pin}</span>
+                  <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700 }}>PIN ••••</span>
                 </div>
               </div>
               <span style={{ color: "var(--muted)", display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 800 }}>

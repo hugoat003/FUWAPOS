@@ -26,13 +26,35 @@ export function lineTotal(line) {
   return lineUnit(line) * line.qty;
 }
 
-// Suma el efectivo cobrado en órdenes válidas (no anuladas), incluyendo la
-// parte en efectivo de los pagos divididos.
-export function cashFromOrders(orders) {
+// Suma lo cobrado en órdenes válidas (no anuladas) por método de pago,
+// desglosando los pagos divididos en sus partes.
+function sumByMethod(orders, keep) {
   return orders
     .filter((o) => !o.voided)
     .reduce((s, o) => {
       const parts = o.payment.split ? o.payment.parts : [{ method: o.payment.method, total: o.payment.total }];
-      return s + parts.filter((p) => p.method === "efectivo").reduce((s2, p) => s2 + p.total, 0);
+      return s + parts.filter((p) => keep(p.method)).reduce((s2, p) => s2 + p.total, 0);
     }, 0);
+}
+export const cashFromOrders = (orders) => sumByMethod(orders, (m) => m === "efectivo");
+// Todo lo que no es efectivo cuenta como tarjeta (misma regla que el servidor).
+export const cardFromOrders = (orders) => sumByMethod(orders, (m) => m !== "efectivo");
+
+/* Movimientos de efectivo de la caja registrados como gastos. Las salidas
+   restan y las entradas suman; el resto de métodos ("otro") no toca la caja. */
+export function cashMovesFromExpenses(expenses) {
+  let out = 0;
+  let cashIn = 0;
+  for (const e of expenses || []) {
+    if (e.method !== "efectivo") continue;
+    if ((e.kind || "salida") === "entrada") cashIn += e.amount;
+    else out += e.amount;
+  }
+  return { cashExpenses: out, cashIn };
+}
+
+// Efectivo disponible en caja ahora mismo (para no dejarla en negativo).
+export function availableCashNow(openingCash, orders, expenses) {
+  const { cashExpenses, cashIn } = cashMovesFromExpenses(expenses);
+  return openingCash + cashFromOrders(orders) + cashIn - cashExpenses;
 }

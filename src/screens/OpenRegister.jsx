@@ -4,8 +4,10 @@ import { Icon } from "../components/Icon.jsx";
 import { Btn } from "../components/ui.jsx";
 import { money } from "../lib/format.js";
 
-export function OpenRegister({ onOpen, lastClose }) {
-  const [fondo, setFondo] = useState("");
+export function OpenRegister({ onOpen, lastClose, lastCloseNote, lastCashLeft }) {
+  // Si el turno anterior dejó anotado cuánto quedaba en caja, se propone como
+  // fondo: es lo que hay que contar para confirmar que cuadra.
+  const [fondo, setFondo] = useState(() => (lastCashLeft != null ? String(lastCashLeft) : ""));
   const amount = parseFloat(fondo) || 0;
 
   return (
@@ -20,8 +22,36 @@ export function OpenRegister({ onOpen, lastClose }) {
         </p>
 
         {lastClose && (
-          <div style={{ background: "var(--cream)", borderRadius: 12, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: "var(--muted)", fontWeight: 700 }}>
+          <div style={{ background: "var(--cream)", borderRadius: 12, padding: "10px 14px", marginBottom: lastCloseNote || lastCashLeft != null ? 12 : 20, fontSize: 13, color: "var(--muted)", fontWeight: 700 }}>
             Último cierre: {lastClose}
+          </div>
+        )}
+
+        {/* Traspaso de turno: lo que dejó dicho quien cerró. Va destacado
+            porque es lo que hay que verificar ANTES de empezar a cobrar. */}
+        {(lastCloseNote || lastCashLeft != null) && (
+          <div
+            style={{
+              background: "oklch(0.97 0.03 85)",
+              border: "2px solid oklch(0.88 0.07 85)",
+              borderRadius: 14,
+              padding: "12px 16px",
+              marginBottom: 20,
+              textAlign: "left",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
+              <Icon name="note" size={15} color="oklch(0.45 0.1 70)" />
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: "oklch(0.45 0.1 70)", textTransform: "uppercase", letterSpacing: 0.7 }}>
+                Del turno anterior
+              </span>
+            </div>
+            {lastCashLeft != null && (
+              <div style={{ fontSize: 14, color: "var(--ink)", fontWeight: 800, marginBottom: lastCloseNote ? 5 : 0 }}>
+                Dejaron {money(lastCashLeft)} en caja — cuenta que cuadre antes de abrir.
+              </div>
+            )}
+            {lastCloseNote && <div style={{ fontSize: 13.5, color: "var(--ink)", lineHeight: 1.45 }}>{lastCloseNote}</div>}
           </div>
         )}
 
