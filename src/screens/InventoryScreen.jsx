@@ -99,14 +99,14 @@ function IngredientForm({ initial, onCancel, onSave, onDelete }) {
 
   return (
     <div style={overlay} onClick={onCancel}>
-      <div style={{ ...sheet, maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+      <div className="fuwa-sheet-tall" style={{ ...sheet, maxWidth: 460, display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ background: "var(--primary-soft)", padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontFamily: "var(--display)", fontWeight: 800, fontSize: 21, color: "var(--navy)" }}>{isNew ? "Nuevo ingrediente" : "Editar ingrediente"}</div>
           <button onClick={onCancel} style={iconBtn} aria-label="Cerrar">
             <Icon name="x" size={20} />
           </button>
         </div>
-        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
           <Field label="Nombre">
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Leche entera" style={inp} autoFocus />
           </Field>
@@ -276,7 +276,7 @@ function MoveForm({ ingredient, canManage, onCancel, onSave }) {
 
   return (
     <div style={overlay} onClick={onCancel}>
-      <div style={{ ...sheet, maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+      <div className="fuwa-sheet-tall" style={{ ...sheet, maxWidth: 440, display: "flex", flexDirection: "column" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ background: "var(--primary-soft)", padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontFamily: "var(--display)", fontWeight: 800, fontSize: 20, color: "var(--navy)" }}>{ingredient.name}</div>
@@ -288,7 +288,7 @@ function MoveForm({ ingredient, canManage, onCancel, onSave }) {
             <Icon name="x" size={20} />
           </button>
         </div>
-        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
           <Field label="Tipo de movimiento">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {tipos.map((r) => (

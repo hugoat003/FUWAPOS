@@ -68,14 +68,18 @@ export function Pill({ children, active, color, onClick, style }) {
 }
 
 // Estilos compartidos para modales / hojas (order modal, menu editor form).
+/* Fondo del modal. Se desplaza si el contenido no cabe: es la red de seguridad
+   para que ningún modal pueda dejar su botón de guardar fuera de la pantalla.
+   Pasó de verdad — el formulario de ingrediente creció al añadirle la unidad de
+   compra y en una tablet de 768px el botón quedaba 25px por debajo del borde,
+   sin forma de alcanzarlo. */
 export const overlay = {
   position: "fixed",
   inset: 0,
   background: "rgba(40,44,60,.45)",
   backdropFilter: "blur(3px)",
   display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  overflowY: "auto",
   zIndex: 100,
   padding: 20,
 };
@@ -83,6 +87,11 @@ export const sheet = {
   background: "var(--cream)",
   borderRadius: "calc(var(--r) * 1.2)",
   width: "100%",
+  /* `margin: auto` y NO `alignItems: center` en el contenedor: con centrado por
+     flex, un hijo más alto que la pantalla se recorta por ARRIBA y esa parte
+     queda inalcanzable al desplazar. Con margen automático se centra igual
+     cuando cabe y se comporta bien cuando no. */
+  margin: "auto",
   overflow: "hidden",
   boxShadow: "0 30px 70px -20px rgba(40,44,60,.5)",
 };
