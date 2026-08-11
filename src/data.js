@@ -153,6 +153,15 @@ const MOD_LECHE = {
   required: false,
   options: [
     { name: "Entera", delta: 0 },
+    /* Deslactosada sin recargo: la carta impresa no le pone precio, y cobrar
+       algo que el cliente no ve anunciado genera discusión en caja. Si el
+       negocio decide cobrarla, se cambia el delta desde el editor de menú.
+
+       Tampoco lleva `swap` todavía: apuntar a un ingrediente que no existe haría
+       que esa leche se descontara de la nada. Cuando se cargue el inventario
+       real hay que crear "Leche deslactosada" y añadir aquí el intercambio,
+       igual que tiene la de almendra. */
+    { name: "Deslactosada", delta: 0 },
     // swap: cambia TODA la leche entera del producto por la alternativa, así
     // da igual si la bebida lleva 120 o 180 ml y si el tamaño la aumentó.
     { name: "Almendra", delta: 5, swap: { from: "i_leche", to: "i_leche_almendra" } },
@@ -173,7 +182,13 @@ export const MOD_GROUPS = {
   tipo_choc: M("tipo_choc", "Chocolate", [O("Oscuro"), O("Blanco")]),
   sabor_chai: M("sabor_chai", "Sabor del chai", [O("Vainilla"), O("Especias"), O("Flamingo"), O("Té verde")]),
   sabor_endulzado: M("sabor_endulzado", "Endulzado con", [O("Vainilla"), O("Avellana")]),
-  con_leche: M("con_leche", "Preparación", [O("Con leche", 5)], "multi"),
+  /* El chocolate se sirve con agua y la leche es un extra de Q5 (así lo anuncia
+     la carta). El tipo de leche va en el MISMO selector para no preguntar dos
+     veces: "¿con leche?" y luego "¿qué leche?" cuando la respuesta pudo ser
+     que no. */
+  con_leche: M("con_leche", "Preparación", [
+    O("Con agua"), O("Con leche entera", 5), O("Con leche deslactosada", 5), O("Con leche de almendra", 10),
+  ]),
 
   // --- bowls y waffles ---
   toppings2: M("toppings2", "Elige 2 toppings", TOPPINGS, "multi"),
@@ -350,7 +365,7 @@ export const PRODUCTS = [
   { id: 'p_moca', cat: 'calientes', name: 'Moca o White', price: 25, desc: 'Chocolate + café', icon: '🍫',
     sizes: oz([8, 25], [12, 30]), mods: ['tipo_choc', 'leche', 'azucar'], recipe: [] },
   { id: 'p_grand_saint', cat: 'calientes', name: 'Grand Saint', price: 32, desc: 'Crema batida, chocolate y oreo · 15 onz', icon: '🍪',
-    sizes: null, mods: [], recipe: [] },
+    sizes: null, mods: ['leche'], recipe: [] },
   { id: 'p_caramel_malcriado', cat: 'calientes', name: 'Caramel Malcriado', price: 27, desc: '', icon: '🍮',
     sizes: oz([8, 27], [12, 30]), mods: ['leche', 'azucar'], recipe: [] },
   { id: 'p_nutelatte', cat: 'calientes', name: 'Nutelatte', price: 30, desc: '', icon: '🍫',
@@ -406,23 +421,23 @@ export const PRODUCTS = [
 
   // ═══ EINSPANNER · bebidas japonesas con crema fuwa ═══
   { id: 'p_kohi_choco', cat: 'einspanner', name: 'Kohi Choco', price: 30, desc: 'Café y chocolate', icon: '🥛',
-    sizes: oz([12, 30], [16, 35]), mods: [], recipe: [] },
+    sizes: oz([12, 30], [16, 35]), mods: ['leche'], recipe: [] },
   { id: 'p_chigo_rose', cat: 'einspanner', name: 'Chigo Rose', price: 30, desc: 'Leche de fresa y jalea de fresa', icon: '🌹',
-    sizes: oz([12, 30], [16, 35]), mods: [], recipe: [] },
+    sizes: oz([12, 30], [16, 35]), mods: ['leche'], recipe: [] },
   { id: 'p_pinky_matcha', cat: 'einspanner', name: 'Pinky Matcha', price: 33, desc: 'Jalea de fresa y matcha', icon: '💗',
-    sizes: oz([12, 33], [16, 38]), mods: [], recipe: [] },
+    sizes: oz([12, 33], [16, 38]), mods: ['leche'], recipe: [] },
   { id: 'p_blackberry_matcha', cat: 'einspanner', name: 'Blackberry Matcha', price: 33, desc: 'Salsa de mora y matcha azul tailandesa', icon: '🫐',
-    sizes: oz([12, 33], [16, 38]), mods: [], recipe: [] },
+    sizes: oz([12, 33], [16, 38]), mods: ['leche'], recipe: [] },
   { id: 'p_cotaro', cat: 'einspanner', name: 'Cotaro', price: 30, desc: 'Agua de coco + taro', icon: '🥥',
-    sizes: oz([12, 30], [16, 35]), mods: [], recipe: [] },
+    sizes: oz([12, 30], [16, 35]), mods: ['leche'], recipe: [] },
 
   // ═══ FRAPPÉS ═══
   { id: 'p_frappe_caramelo', cat: 'frappes', name: 'Frappé Caramelo', price: 32, desc: '', icon: '🥤',
-    sizes: oz([12, 32], [16, 37]), mods: [], recipe: [] },
+    sizes: oz([12, 32], [16, 37]), mods: ['leche'], recipe: [] },
   { id: 'p_frappe_taro', cat: 'frappes', name: 'Frappé Taro', price: 32, desc: '', icon: '🥤',
-    sizes: oz([12, 32], [16, 37]), mods: [], recipe: [] },
+    sizes: oz([12, 32], [16, 37]), mods: ['leche'], recipe: [] },
   { id: 'p_frappe_oreo', cat: 'frappes', name: 'Frappé Oreo', price: 32, desc: '', icon: '🥤',
-    sizes: oz([12, 32], [16, 37]), mods: [], recipe: [] },
+    sizes: oz([12, 32], [16, 37]), mods: ['leche'], recipe: [] },
   { id: 'p_frappe_moca', cat: 'frappes', name: 'Frappé Moca', price: 32, desc: '', icon: '🥤',
-    sizes: oz([12, 32], [16, 37]), mods: [], recipe: [] },
+    sizes: oz([12, 32], [16, 37]), mods: ['leche'], recipe: [] },
 ];
